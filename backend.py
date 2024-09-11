@@ -4,6 +4,10 @@ from langchain_openai import ChatOpenAI
 from langchain.chains import LLMChain
 from langchain.schema.runnable import RunnableMap
 
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.vectorstores import DocArrayInMemorySearch
+from pydantic import ValidationError
+
 from typing import Any, Dict, List
 # Load environment variables from .env file
 load_dotenv()
@@ -73,4 +77,31 @@ def run_llm(query: str, chat_history: List[Dict[str, Any]] = []):
     #response = res = chain.invoke(answer= query)
     #return response
 
+vectorstore = DocArrayInMemorySearch.from_texts(
+   [
+    "Smartphone ammar Pro has a 6.5-inch OLED display and a dual-camera system.",
+    "Organic honey is a natural sweetener harvested from sustainable bee farms.",
+    "Wireless earbuds provide noise cancellation and up to 24 hours of battery life.",
+    "Ergonomic office chair with lumbar support and adjustable armrests for comfort.",
+    "Portable blender for smoothies, shakes, and juices with a rechargeable battery."
+],
+    embedding=OpenAIEmbeddings()
+)
+retriever = vectorstore.as_retriever()
 
+print(retriever.invoke("write an email about smartphone ammar"))
+
+template1 = """create email for the targeted audience on the following product:
+{product}
+
+Question: {question}
+"""
+prompt1 = ChatPromptTemplate.from_template(template1)
+
+chain1 = RunnableMap({
+    "product": lambda x: retriever.invoke(x["question"]),
+    "question": lambda x: x["question"]
+}) | prompt1 | llm
+
+result1 = chain1.invoke({"question": "write email about smartphone ammar"})
+print(result1.content)
